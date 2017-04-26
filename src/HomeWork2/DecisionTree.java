@@ -37,6 +37,7 @@ class Node {
     }
 
     public double calcNodeImpurity(){
+        return 0.0;
     }
 }
 
