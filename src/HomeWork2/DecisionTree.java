@@ -25,8 +25,18 @@ class Node {
     Instances instances;
 
     public boolean isPerfectlyClassified() {
-        //TODO: Implement isPerfectlyClassified
+        double firstClassValue = instances.instance(0).classValue();
+
+        for (Instance instance : instances) {
+            double currentClassValue = instance.classValue();
+            if (currentClassValue != firstClassValue)
+                return false;
+        }
+
         return true;
+    }
+
+    public double calcNodeImpurity(){
     }
 }
 
@@ -76,6 +86,7 @@ public class DecisionTree implements Classifier {
                 // Add the children to the queue
                 for (Node child : currentNode.children) {
                     m_nodesQueue.add(child);
+                    //todo: update rest of nodes fields
                 }
             }
 
@@ -85,7 +96,7 @@ public class DecisionTree implements Classifier {
     }
 
     private Attribute findBestAttribute(Node node) {
-        //TODO: Implement findBestAttribute
+        double currentNodeImpurity = node.calcNodeImpurity();
         return null;
     }
 
