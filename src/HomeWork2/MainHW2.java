@@ -5,7 +5,6 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 
-import HomeWork2.DecisionTree.PruningMode;
 import weka.core.Instances;
 
 public class MainHW2 {
@@ -41,7 +40,8 @@ public class MainHW2 {
 		Instances trainingCancer = loadData("cancer_train.txt");
 		Instances testingCancer = loadData("cancer_test.txt");
 		Instances validationCancer = loadData("cancer_validation.txt");
-		
-        //TODO: complete the Main method
+
+		DecisionTree dt = new DecisionTree();
+		dt.buildClassifier(trainingCancer);
 	}
 }
