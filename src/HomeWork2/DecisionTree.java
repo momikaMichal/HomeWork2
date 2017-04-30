@@ -8,7 +8,8 @@ import weka.core.Instances;
 
 import java.util.*;
 
-//todo: make sure we didnt read the class value when scanning the attributes
+//todo: make sure we didn't read the class value when scanning the attributes
+//todo: make sure that the return value is not always 1 as i just saw
 
 class BasicRule {
     int attributeIndex;
@@ -87,7 +88,6 @@ class Node {
             //these 2 params will give us the weighted entropy
             int totalNumberOfInstancesWithCurrentAttributeValue = 0;
             int numberOfInstancesWithCurrentAttributeValueAndClassIndexZero = 0;
-            int numberOfInstancesWithCurrentAttributeValueAndClassIndexOne = 0;
 
             for (int i = 0; i < numOfInstances; i++) {
                 Instance currentInstance = instances.instance(i);
@@ -97,19 +97,19 @@ class Node {
                     totalNumberOfInstancesWithCurrentAttributeValue++;
                     if (currentInstance.classValue() == 0) {
                         numberOfInstancesWithCurrentAttributeValueAndClassIndexZero++;
-                    } else {
-                        numberOfInstancesWithCurrentAttributeValueAndClassIndexOne++;
                     }
                 }
-            }
 
-            if (totalNumberOfInstancesWithCurrentAttributeValue != 0) {
-                weightedAverageOfEntropyAccordingToAttributeIndex +=
-                        (totalNumberOfInstancesWithCurrentAttributeValue / numOfInstances) *
-                                calcEntropy(numberOfInstancesWithCurrentAttributeValueAndClassIndexZero /
-                                        totalNumberOfInstancesWithCurrentAttributeValue);
+                //todo: check what to do return these params equal to zero
+                if (totalNumberOfInstancesWithCurrentAttributeValue != 0 && numberOfInstancesWithCurrentAttributeValueAndClassIndexZero != 0) {
+                    weightedAverageOfEntropyAccordingToAttributeIndex +=
+                            (totalNumberOfInstancesWithCurrentAttributeValue / numOfInstances) *
+                                    calcEntropy((double) numberOfInstancesWithCurrentAttributeValueAndClassIndexZero /
+                                            totalNumberOfInstancesWithCurrentAttributeValue);
+                }
             }
         }
+
         return rootEntropy - weightedAverageOfEntropyAccordingToAttributeIndex;
     }
 
@@ -124,6 +124,7 @@ public class DecisionTree implements Classifier {
     private List<Node> leavesNodes = new LinkedList<Node>();
     private Queue<Node> m_nodesQueue;
     private int m_numOfAttributes;
+    private static final double THRESHOLD = 15.51;
 
     // Given members
     public enum PruningMode {
@@ -133,12 +134,12 @@ public class DecisionTree implements Classifier {
     private Node rootNode;
     private PruningMode m_pruningMode;
     Instances validationSet;
-    private List<Rule> rules = new ArrayList<Rule>();
+    private List<Rule> leavesRules = new ArrayList<Rule>();
 
     //tree rules includes all leaves rules. use this method only after building the tree
     private void setTreesRules() {
         for (Node node : leavesNodes) {
-            rules.add(node.nodeRule);
+            leavesRules.add(node.nodeRule);
         }
     }
 
@@ -152,6 +153,9 @@ public class DecisionTree implements Classifier {
         rootNode = new Node(new Rule());
         m_nodesQueue = new LinkedList<>();
         m_nodesQueue.add(rootNode);
+
+        // Set pruning mode to "chi"
+        m_pruningMode = PruningMode.Chi;
 
         // Build the tree
         buildTree(arg0);
@@ -178,38 +182,42 @@ public class DecisionTree implements Classifier {
             } else {
                 // currentNode is not a leaf, thus need to be forked
                 Attribute bestAttribute = findBestAttribute(currentNode); // color
-                Enumeration<Object> attributeValues = bestAttribute.enumerateValues(); // green yellow red
-                currentNode.children = new Node[bestAttribute.numValues()];
+                if (calcChiSquare(currentNode.instances, bestAttribute.index()) >= THRESHOLD) {
+                    Enumeration<Object> attributeValues = bestAttribute.enumerateValues(); // green yellow red
+                    currentNode.children = new Node[bestAttribute.numValues()];
 
-                //create each child with its fathers list of rules(nodeRules) so far
-                for (int i = 0; i < currentNode.children.length; i++) {
-                    currentNode.children[i] = new Node(currentNode.nodeRule);
-                }
-
-
-                int i = 0;// i indicates the index of the value of the attribute
-                while (attributeValues.hasMoreElements()) {
-                    Object attributeValue = attributeValues.nextElement();
-                    Node currentChild = currentNode.children[i];
-                    for (Instance instance : currentNode.instances) {
-                        String bestAttributeValueOfCurrentInstance = instance.stringValue(bestAttribute);
-                        if (bestAttributeValueOfCurrentInstance.equals(attributeValue)) {
-                            currentChild.instances.add(instance);
-                        }
+                    //create each child with its fathers list of rules(nodeRules) so far
+                    for (int i = 0; i < currentNode.children.length; i++) {
+                        currentNode.children[i] = new Node(currentNode.nodeRule);
                     }
-                    //set attribute index&value for building the rules
-                    currentChild.basicRule.attributeValue = i;
-                    currentChild.basicRule.attributeIndex = bestAttribute.index();
-                    //add the created basicRule to the list of the nodes rules
-                    currentChild.nodeRule.listOfBasicRules.add(currentChild.basicRule);
-                    currentChild.parent = currentNode;
 
-                    i++;
-                }
+                    int i = 0;// i indicates the index of the value of the attribute
+                    while (attributeValues.hasMoreElements()) {
+                        Object attributeValue = attributeValues.nextElement();
+                        Node currentChild = currentNode.children[i];
+                        for (Instance instance : currentNode.instances) {
+                            String bestAttributeValueOfCurrentInstance = instance.stringValue(bestAttribute);
+                            if (bestAttributeValueOfCurrentInstance.equals(attributeValue)) {
+                                if (currentChild.instances == null) {//create new empty set of instances
+                                    currentChild.instances = new Instances(data, -1);
+                                }
+                                currentChild.instances.add(instance);
+                            }
+                        }
+                        //set attribute index&value for building the rules
+                        currentChild.basicRule.attributeValue = i;
+                        currentChild.basicRule.attributeIndex = bestAttribute.index();
+                        //add the created basicRule to the list of the nodes rules
+                        currentChild.nodeRule.listOfBasicRules.add(currentChild.basicRule);
+                        currentChild.parent = currentNode;
 
-                // Add the children to the queue
-                for (Node child : currentNode.children) {
-                    m_nodesQueue.add(child);
+                        i++;
+                    }
+
+                    // Add the children to the queue
+                    for (Node child : currentNode.children) {
+                        m_nodesQueue.add(child);
+                    }
                 }
             }
         }
@@ -263,6 +271,27 @@ public class DecisionTree implements Classifier {
 
         double averageError = numOfErrors / numOfInstances;
         return averageError;
+    }
+
+    private void rulePruning() {
+        setTreesRules();
+
+        for (int i = 0; i < leavesNodes.size(); i++) {
+
+            Node currentNode = leavesNodes.get(i);
+
+            // Calculate average error before pruning
+            double averageErrorBeforePruning = calcAvgError(currentNode.instances);
+
+            // Remove the last basic rule in the list
+            List<BasicRule> basicRulesOfCurrentRule = currentNode.nodeRule.listOfBasicRules;
+            BasicRule RemovedBasicRule = basicRulesOfCurrentRule.remove(basicRulesOfCurrentRule.size() - 1);
+
+            // Calculate average error after pruning
+            calcAvgError(currentNode.parent.instances);
+
+            // TODO: to be continued
+        }
     }
 
     /**
