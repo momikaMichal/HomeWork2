@@ -9,7 +9,6 @@ import weka.core.Instances;
 import java.util.*;
 
 //todo: make sure we didnt read the class value when scanning the attributes
-//todo: there is no need to use strings, so check it in the buildtree function
 
 class BasicRule {
     int attributeIndex;
@@ -77,36 +76,40 @@ class Node {
 
         //we have attributeIndex (=color)
         //now need to divide to yellow/blue/red and calc entropy for each one
+        double weightedAverageOfEntropyAccordingToAttributeIndex = 0;
         Attribute attribute = this.instances.attribute(attributeIndex);
         Enumeration<Object> attributeValues = attribute.enumerateValues();
 
-        double weightedAverageOfEntropyAccordingToAttributeIndex = 0;
         while (attributeValues.hasMoreElements()) {
             Object attributeValue = attributeValues.nextElement();
             //count total number instances having this attribute value and count the
             //number of instances having this attribute and class-index=0
             //these 2 params will give us the weighted entropy
-            int totalNumberOfInstancesWithCurrentAttributeValue = 0,
-                    numberOfInstancesWithCurrentAttributeValueAndClassIndexZero = 0;
+            int totalNumberOfInstancesWithCurrentAttributeValue = 0;
+            int numberOfInstancesWithCurrentAttributeValueAndClassIndexZero = 0;
+            int numberOfInstancesWithCurrentAttributeValueAndClassIndexOne = 0;
 
             for (int i = 0; i < numOfInstances; i++) {
                 Instance currentInstance = instances.instance(i);
-                if (currentInstance.attribute(attributeIndex).equals(attributeValue)) {
+                String currentInstanceAttributeValue = currentInstance.stringValue(attributeIndex);
+
+                if (currentInstanceAttributeValue.equals(attributeValue)) {
                     totalNumberOfInstancesWithCurrentAttributeValue++;
                     if (currentInstance.classValue() == 0) {
                         numberOfInstancesWithCurrentAttributeValueAndClassIndexZero++;
+                    } else {
+                        numberOfInstancesWithCurrentAttributeValueAndClassIndexOne++;
                     }
                 }
             }
 
-            // TODO: ISSUE - totalNumberOfInstancesWithCurrentAttributeValue = 0, dividing by 0
-            weightedAverageOfEntropyAccordingToAttributeIndex +=
-                    (totalNumberOfInstancesWithCurrentAttributeValue / numOfInstances) *
-                            calcEntropy(numberOfInstancesWithCurrentAttributeValueAndClassIndexZero /
-                                    totalNumberOfInstancesWithCurrentAttributeValue);
-
+            if (totalNumberOfInstancesWithCurrentAttributeValue != 0) {
+                weightedAverageOfEntropyAccordingToAttributeIndex +=
+                        (totalNumberOfInstancesWithCurrentAttributeValue / numOfInstances) *
+                                calcEntropy(numberOfInstancesWithCurrentAttributeValueAndClassIndexZero /
+                                        totalNumberOfInstancesWithCurrentAttributeValue);
+            }
         }
-
         return rootEntropy - weightedAverageOfEntropyAccordingToAttributeIndex;
     }
 
@@ -119,7 +122,7 @@ public class DecisionTree implements Classifier {
 
     // Our members
     private List<Node> leavesNodes = new LinkedList<Node>();
-    private Queue<Node> m_nodesQueue; // TODO: we need to think how we add all nodes back to this queue so we can use it later for iterating the tree
+    private Queue<Node> m_nodesQueue;
     private int m_numOfAttributes;
 
     // Given members
@@ -154,7 +157,11 @@ public class DecisionTree implements Classifier {
         buildTree(arg0);
     }
 
-    //todo: there is no use of data in this function...check it
+    /**
+     * Builds a tree based on a given instances set.
+     *
+     * @param data
+     */
     private void buildTree(Instances data) {
 
         rootNode.instances = data;
@@ -207,6 +214,12 @@ public class DecisionTree implements Classifier {
         }
     }
 
+    /**
+     * Finds the attribute that brings us closer to perfect classification
+     *
+     * @param node
+     * @return the best attribute
+     */
     private Attribute findBestAttribute(Node node) {
         Attribute bestAttribute = null;
         double maxImpurity = Integer.MIN_VALUE;
@@ -225,11 +238,14 @@ public class DecisionTree implements Classifier {
         return bestAttribute;
     }
 
-    /*
-    * Calculate the average on a given instances set (could be the training, test or validation set).
-    * The average error is the total number of classification mistakes on the input instances set
-    * and divides that by the number of instances in the input set.
-    * */
+    /**
+     * Calculate the average on a given instances set (could be the training, test or validation set).
+     * The average error is the total number of classification mistakes on the input instances set
+     * and divides that by the number of instances in the input set.
+     *
+     * @param data
+     * @return the average error
+     */
     private double calcAvgError(Instances data) {
 
         int numOfInstances = data.numInstances();
@@ -248,72 +264,74 @@ public class DecisionTree implements Classifier {
         return averageError;
     }
 
-    /*
-    * Calculates the chi square statistic of splitting the data according to this attribute as learned in class.
-    * */
-    private double calcChiSquare(int attributeIndex) {
-        // TODO: Implement
-        int[] D; // each cell represents total number of instances for each value of attributeIndex
-        int[] p0; // each cell represents number of instances for each value of attributeIndex where classValue=0
-        int[] p1; // each cell represents number of instances for each value of attributeIndex where classValue=1
-        return 0.0;
-    }
+    /**
+     * Calculates the chi square statistic of splitting the data according to this attribute as learned in class.
+     *
+     * @param data
+     * @param attributeIndex
+     * @return chi square statistic
+     */
+    private double calcChiSquare(Instances data, int attributeIndex) {
 
-    public void setPruningMode(PruningMode pruningMode) {
-        m_pruningMode = pruningMode;
-    }
+        int numOfValuesOfAttribute = data.attribute(attributeIndex).numValues();
+        int numOfInstances = data.numInstances();
+        Enumeration<Object> attributeValues = data.attribute(attributeIndex).enumerateValues();
 
-    public void setValidation(Instances validation) {
-        validationSet = validation;
-    }
+        int[] Df = new int[numOfValuesOfAttribute]; // each cell represents number of instances with the same value of the attribute
+        int[] pf = new int[numOfValuesOfAttribute]; // each cell represents number of instances with the same value of the attribute where classValue=0
+        int[] nf = new int[numOfValuesOfAttribute]; // each cell represents number of instances with the same value of the attribute where classValue=1
+        int[] p0 = new int[numOfValuesOfAttribute]; // each cell represents number of instances with classValue=0 divided by the total number of instances
+        int[] p1 = new int[numOfValuesOfAttribute]; // each cell represents number of instances with classValue=1 divided by the total number of instances
 
-    /*
-    * The classification of an instance is done by searching for the most suitable rule.
-    * The definition for the most suitable rule is follow by this steps:
-    * (1) If an instance meets all conditions for a given rule then its classification will be the rule returning value.
-    * (2) If there is no such a rule then you need to find the most suitable one, the one that meets the largest number
-        * of consecutive conditions (from the most left condition – meaning the largest path from the root).
-    * (3) If there are more than one rule with the largest number from the previous step then classify with the majority
-        * of the returning values of those rules.
-    * */
-    @Override
-    public double classifyInstance(Instance instance) {
+        double chiSquareStatistic = 0;
 
-        Node nodeWithMostSuitableRule = null;
-        int maxNumberOfConsecutiveConditions = Integer.MIN_VALUE;
+        for (Instance instance : data) {
 
-        if (rootNode.isLeaf()) {
-            return rootNode.nodeRule.returnValue;
-        } else {
-            // As long as the root node is not a leaf, search for the most suitable rule
-            int currentNumberOfConsecutiveConditions;
+            while (attributeValues.hasMoreElements()) {
+                Object attributeValue = attributeValues.nextElement();
+                String currentInstanceAttributeValueAsString = instance.stringValue(attributeIndex);
 
-            // Iterating all the nodes in the tree in order to find the node with the most suitable rule.
-            for (Node node : m_nodesQueue) {
-                currentNumberOfConsecutiveConditions = CalculateNumberOfConsecutiveConditions(node, instance);
-                if (currentNumberOfConsecutiveConditions > maxNumberOfConsecutiveConditions) {
-                    // if the number of consecutive condition of the current node is higher than maximum,
-                    // then update maximum and set nodeWithMostSuitableRule with the current node
-                    maxNumberOfConsecutiveConditions = currentNumberOfConsecutiveConditions;
-                    nodeWithMostSuitableRule = node;
-                } else if (currentNumberOfConsecutiveConditions == maxNumberOfConsecutiveConditions) {
-                    // if the number of consecutive condition of the current node is equal to the maximum,
-                    // then compare the return values of these 2 nodes and update maximum to the node with the higher return value.
-                    if (node.nodeRule.returnValue > nodeWithMostSuitableRule.nodeRule.returnValue)
-                        nodeWithMostSuitableRule = node;
+                if (attributeValue.equals(currentInstanceAttributeValueAsString)) {
+                    int indexOfValue = instance.attribute(attributeIndex).indexOfValue(currentInstanceAttributeValueAsString);
+                    Df[indexOfValue]++; //Increment the cell of this value according ot its index
+
+                    if (instance.classValue() == 0) {
+                        pf[indexOfValue]++;
+                        p0[indexOfValue]++;
+                    } else {
+                        nf[indexOfValue]++;
+                        p1[indexOfValue]++;
+                    }
+                    continue;
                 }
             }
         }
-        return nodeWithMostSuitableRule.nodeRule.returnValue;
+
+        for (int i = 0; i < numOfValuesOfAttribute; i++) {
+
+            p0[i] = p0[i] / numOfInstances;
+            p1[i] = p1[i] / numOfInstances;
+
+            // For each attribute value, calculate:
+            int E0 = Df[i] * p0[i];
+            int E1 = Df[i] * p1[i];
+
+            chiSquareStatistic += Math.pow(pf[i] - E0, 2) / E0 + Math.pow(nf[i] - E1, 2);
+        }
+
+        return chiSquareStatistic;
     }
 
-    /*
-    * Calculates for a given instance the number of consecutive conditions that hold in a certain node
-    * */
-    private int CalculateNumberOfConsecutiveConditions(Node currentNode, Instance instance) {
+    /**
+     * Calculates for a given instance the number of consecutive conditions that hold in a certain node
+     *
+     * @param currentNode
+     * @param instance
+     * @return number of consecutive conditions
+     */
+    private int calculateNumberOfConsecutiveConditions(Node currentNode, Instance instance) {
         int numberOfConsecutiveConditions = 0;
         List<BasicRule> listOfBasicRules = currentNode.nodeRule.getListOfBasicRules();
-
 
         for (BasicRule basicRule : listOfBasicRules) {
             if (instance.value(basicRule.attributeIndex) == basicRule.attributeValue) {
@@ -324,6 +342,61 @@ public class DecisionTree implements Classifier {
             }
         }
         return numberOfConsecutiveConditions;
+    }
+
+    /**
+     * Sets the pruning mode according to the given pruning mode.
+     *
+     * @param pruningMode
+     */
+    public void setPruningMode(PruningMode pruningMode) {
+        m_pruningMode = pruningMode;
+    }
+
+    /**
+     * Sets the validation according to the given validation.
+     *
+     * @param validation
+     */
+    public void setValidation(Instances validation) {
+        validationSet = validation;
+    }
+
+    /**
+     * The classification of an instance is done by searching for the most suitable rule
+     * The definition for the most suitable rule is follow by this steps:
+     * (1) If an instance meets all conditions for a given rule then its classification will be the rule returning value.
+     * (2) If there is no such a rule then you need to find the most suitable one, the one that meets the largest number
+     * of consecutive conditions (from the most left condition – meaning the largest path from the root).
+     * (3) If there are more than one rule with the largest number from the previous step then classify with the majority
+     * of the returning values of those rules.
+     *
+     * @param instance the instance to classify
+     * @return the predicted class value
+     */
+    @Override
+    public double classifyInstance(Instance instance) {
+
+        Node nodeWithMostSuitableRule = null;
+        int maxNumberOfConsecutiveConditions = Integer.MIN_VALUE;
+
+        for (Node leaf : leavesNodes) {
+            // Iterating all leaves in order to find the node with the most suitable rule.
+            int currentNumberOfConsecutiveConditions = calculateNumberOfConsecutiveConditions(leaf, instance);
+            if (currentNumberOfConsecutiveConditions > maxNumberOfConsecutiveConditions) {
+                // if the number of consecutive condition of the current node is higher than maximum,
+                // then update maximum and set nodeWithMostSuitableRule with the current node
+                maxNumberOfConsecutiveConditions = currentNumberOfConsecutiveConditions;
+                nodeWithMostSuitableRule = leaf;
+            } else if (currentNumberOfConsecutiveConditions == maxNumberOfConsecutiveConditions) {
+                // if the number of consecutive condition of the current node is equal to the maximum,
+                // then compare the return values of these 2 nodes and update maximum to the node with the higher return value.
+                if (leaf.nodeRule.returnValue > nodeWithMostSuitableRule.nodeRule.returnValue)
+                    nodeWithMostSuitableRule = leaf;
+            }
+        }
+
+        return nodeWithMostSuitableRule.nodeRule.returnValue;
     }
 
     @Override

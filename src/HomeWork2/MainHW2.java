@@ -34,7 +34,6 @@ public class MainHW2 {
 		data.setClassIndex(data.numAttributes() - 1);
 		return data;
 	}
-	
 
 	public static void main(String[] args) throws Exception {
 		Instances trainingCancer = loadData("cancer_train.txt");
