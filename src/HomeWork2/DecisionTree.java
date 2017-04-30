@@ -186,6 +186,7 @@ public class DecisionTree implements Classifier {
                     currentNode.children[i] = new Node(currentNode.nodeRule);
                 }
 
+
                 int i = 0;// i indicates the index of the value of the attribute
                 while (attributeValues.hasMoreElements()) {
                     Object attributeValue = attributeValues.nextElement();
