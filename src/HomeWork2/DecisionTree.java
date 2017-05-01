@@ -37,8 +37,9 @@ class Node {
     Rule nodeRule;
     Instances instances;
 
-    public Node(Rule fathersRule) {
+    public Node(Instances data, Rule fathersRule) {
         this.nodeRule = fathersRule;
+        this.instances = new Instances(data, -1);
         //buildTree should add a new BasicRule to current list of BasicRules
     }
 
@@ -99,14 +100,14 @@ class Node {
                         numberOfInstancesWithCurrentAttributeValueAndClassIndexZero++;
                     }
                 }
+            }
 
-                //todo: check what to do return these params equal to zero
-                if (totalNumberOfInstancesWithCurrentAttributeValue != 0 && numberOfInstancesWithCurrentAttributeValueAndClassIndexZero != 0) {
-                    weightedAverageOfEntropyAccordingToAttributeIndex +=
-                            (totalNumberOfInstancesWithCurrentAttributeValue / numOfInstances) *
-                                    calcEntropy((double) numberOfInstancesWithCurrentAttributeValueAndClassIndexZero /
-                                            totalNumberOfInstancesWithCurrentAttributeValue);
-                }
+            //todo: check what to do return these params equal to zero
+            if (totalNumberOfInstancesWithCurrentAttributeValue != 0 && numberOfInstancesWithCurrentAttributeValueAndClassIndexZero != 0) {
+                weightedAverageOfEntropyAccordingToAttributeIndex +=
+                        (totalNumberOfInstancesWithCurrentAttributeValue / numOfInstances) *
+                                calcEntropy((double) numberOfInstancesWithCurrentAttributeValueAndClassIndexZero /
+                                        totalNumberOfInstancesWithCurrentAttributeValue);
             }
         }
 
@@ -150,7 +151,7 @@ public class DecisionTree implements Classifier {
         m_numOfAttributes = arg0.numAttributes() - 1;
 
         // Adding root
-        rootNode = new Node(new Rule());
+        rootNode = new Node(arg0, new Rule());
         m_nodesQueue = new LinkedList<>();
         m_nodesQueue.add(rootNode);
 
@@ -175,48 +176,48 @@ public class DecisionTree implements Classifier {
 
             Node currentNode = m_nodesQueue.remove();
 
-            if (currentNode.isPerfectlyClassified()) {
-                // currentNode is a leaf. set its returning value and add it to leaves list
-                currentNode.nodeRule.returnValue = currentNode.instances.instance(0).classValue();
-                leavesNodes.add(currentNode);
-            } else {
-                // currentNode is not a leaf, thus need to be forked
-                Attribute bestAttribute = findBestAttribute(currentNode); // color
-                if (calcChiSquare(currentNode.instances, bestAttribute.index()) >= THRESHOLD) {
-                    Enumeration<Object> attributeValues = bestAttribute.enumerateValues(); // green yellow red
-                    currentNode.children = new Node[bestAttribute.numValues()];
+            // If there are instances in the current node there's no need to handle it
+            if (currentNode.instances.size() != 0) {
+                if (currentNode.isPerfectlyClassified()) {
+                    // currentNode is a leaf. set its returning value and add it to leaves list
+                    currentNode.nodeRule.returnValue = currentNode.instances.instance(0).classValue();
+                    leavesNodes.add(currentNode);
+                } else {
+                    // currentNode is not a leaf, thus need to be forked
+                    Attribute bestAttribute = findBestAttribute(currentNode); // color
+                    if (calcChiSquare(currentNode.instances, bestAttribute.index()) >= THRESHOLD) {
+                        Enumeration<Object> attributeValues = bestAttribute.enumerateValues(); // green yellow red
+                        currentNode.children = new Node[bestAttribute.numValues()];
 
-                    //create each child with its fathers list of rules(nodeRules) so far
-                    for (int i = 0; i < currentNode.children.length; i++) {
-                        currentNode.children[i] = new Node(currentNode.nodeRule);
-                    }
-
-                    int i = 0;// i indicates the index of the value of the attribute
-                    while (attributeValues.hasMoreElements()) {
-                        Object attributeValue = attributeValues.nextElement();
-                        Node currentChild = currentNode.children[i];
-                        for (Instance instance : currentNode.instances) {
-                            String bestAttributeValueOfCurrentInstance = instance.stringValue(bestAttribute);
-                            if (bestAttributeValueOfCurrentInstance.equals(attributeValue)) {
-                                if (currentChild.instances == null) {//create new empty set of instances
-                                    currentChild.instances = new Instances(data, -1);
-                                }
-                                currentChild.instances.add(instance);
-                            }
+                        //create each child with its fathers list of rules(nodeRules) so far
+                        for (int i = 0; i < currentNode.children.length; i++) {
+                            currentNode.children[i] = new Node(data, currentNode.nodeRule);
                         }
-                        //set attribute index&value for building the rules
-                        currentChild.basicRule.attributeValue = i;
-                        currentChild.basicRule.attributeIndex = bestAttribute.index();
-                        //add the created basicRule to the list of the nodes rules
-                        currentChild.nodeRule.listOfBasicRules.add(currentChild.basicRule);
-                        currentChild.parent = currentNode;
 
-                        i++;
-                    }
+                        int i = 0;// i indicates the index of the value of the attribute
+                        while (attributeValues.hasMoreElements()) {
+                            Object attributeValue = attributeValues.nextElement();
+                            Node currentChild = currentNode.children[i];
+                            for (Instance instance : currentNode.instances) {
+                                String bestAttributeValueOfCurrentInstance = instance.stringValue(bestAttribute);
+                                if (bestAttributeValueOfCurrentInstance.equals(attributeValue)) {
+                                    currentChild.instances.add(instance);
+                                }
+                            }
+                            //set attribute index&value for building the rules
+                            currentChild.basicRule.attributeValue = i;
+                            currentChild.basicRule.attributeIndex = bestAttribute.index();
+                            //add the created basicRule to the list of the nodes rules
+                            currentChild.nodeRule.listOfBasicRules.add(currentChild.basicRule);
+                            currentChild.parent = currentNode;
 
-                    // Add the children to the queue
-                    for (Node child : currentNode.children) {
-                        m_nodesQueue.add(child);
+                            i++;
+                        }
+
+                        // Add the children to the queue
+                        for (Node child : currentNode.children) {
+                            m_nodesQueue.add(child);
+                        }
                     }
                 }
             }
