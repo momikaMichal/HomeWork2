@@ -160,6 +160,8 @@ public class DecisionTree implements Classifier {
 
         // Build the tree
         buildTree(arg0);
+
+        rootNode = rootNode;
     }
 
     /**
@@ -306,18 +308,25 @@ public class DecisionTree implements Classifier {
 
         int numOfValuesOfAttribute = data.attribute(attributeIndex).numValues();
         int numOfInstances = data.numInstances();
-        Enumeration<Object> attributeValues = data.attribute(attributeIndex).enumerateValues();
+
+        double p0 = 0;
+        double p1 = 0;
 
         int[] Df = new int[numOfValuesOfAttribute]; // each cell represents number of instances with the same value of the attribute
         int[] pf = new int[numOfValuesOfAttribute]; // each cell represents number of instances with the same value of the attribute where classValue=0
         int[] nf = new int[numOfValuesOfAttribute]; // each cell represents number of instances with the same value of the attribute where classValue=1
-        int[] p0 = new int[numOfValuesOfAttribute]; // each cell represents number of instances with classValue=0 divided by the total number of instances
-        int[] p1 = new int[numOfValuesOfAttribute]; // each cell represents number of instances with classValue=1 divided by the total number of instances
 
         double chiSquareStatistic = 0;
 
         for (Instance instance : data) {
 
+            if (instance.classValue() == 0) {
+                p0++;
+            } else {
+                p1++;
+            }
+
+            Enumeration<Object> attributeValues = data.attribute(attributeIndex).enumerateValues();
             while (attributeValues.hasMoreElements()) {
                 Object attributeValue = attributeValues.nextElement();
                 String currentInstanceAttributeValueAsString = instance.stringValue(attributeIndex);
@@ -328,26 +337,28 @@ public class DecisionTree implements Classifier {
 
                     if (instance.classValue() == 0) {
                         pf[indexOfValue]++;
-                        p0[indexOfValue]++;
                     } else {
                         nf[indexOfValue]++;
-                        p1[indexOfValue]++;
                     }
                     continue;
                 }
             }
         }
 
+        p0 = p0 / numOfInstances;
+        p1 = p1 / numOfInstances;
+
         for (int i = 0; i < numOfValuesOfAttribute; i++) {
 
-            p0[i] = p0[i] / numOfInstances;
-            p1[i] = p1[i] / numOfInstances;
+            if (Df[i] != 0) {
+                // For each attribute value, calculate:
+                double E0 = Df[i] * p0;
+                double E1 = Df[i] * p1;
 
-            // For each attribute value, calculate:
-            int E0 = Df[i] * p0[i];
-            int E1 = Df[i] * p1[i];
-
-            chiSquareStatistic += Math.pow(pf[i] - E0, 2) / E0 + Math.pow(nf[i] - E1, 2);
+                double a = Math.pow(pf[i] - E0, 2) / E0;
+                double b = Math.pow(nf[i] - E1, 2) / E1;
+                chiSquareStatistic += a + b;
+            }
         }
 
         return chiSquareStatistic;
@@ -392,6 +403,8 @@ public class DecisionTree implements Classifier {
     public void setValidation(Instances validation) {
         validationSet = validation;
     }
+
+
 
     /**
      * The classification of an instance is done by searching for the most suitable rule
