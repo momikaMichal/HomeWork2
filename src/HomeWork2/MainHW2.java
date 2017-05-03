@@ -45,53 +45,53 @@ public class MainHW2 {
         Instances validationCancer = loadData("cancer_validation.txt");
         // TODO: we need to use validationCancer somehow
 
-        // TEST
-        Instances test = loadData("test.txt");
-        DecisionTree dtt = new DecisionTree();
-        dtt.setPruningMode(PruningMode.None);
-        dtt.buildClassifier(test);
-        dtt.calcAvgError(test);
+        // TEST - use it for debugging
+//        Instances test = loadData("test.txt");
+//        DecisionTree dtt = new DecisionTree();
+//        dtt.setPruningMode(PruningMode.None);
+//        dtt.buildClassifier(test);
+//        dtt.calcAvgError(test);
 
         //Write results to hw2.txt
         Writer writer = null;
-//        try {
-//            writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("h2.txt"), "utf-8"));
-//
-//            for (PruningMode mode : PruningMode.values()) {
-//
-//                //Train classifier
-//                DecisionTree dt = new DecisionTree();
-//                dt.setPruningMode(mode);
-//                dt.buildClassifier(trainingCancer);
-//
-//                double averageTrainError = dt.calcAvgError(trainingCancer);
-//                double averageTestError = dt.calcAvgError(testingCancer);
-//                double amountOfRulesGeneratedFromTheTree = dt.getAmountOfRules();
-//
-//                if (mode.equals(PruningMode.None)) {
-//                    writer.write(
-//                            "Decision Tree with No pruning\n"
-//                                    + "The average train error of the decision tree is " + averageTrainError + "\n"
-//                                    + "The average test error of the decision tree is " + averageTestError + "\n"
-//                    );
-//                } else {
-//                    writer.write(
-//                            "Decision Tree with " + mode.toString() + " pruning\n"
-//                                    + "The average train error of the decision tree with " + mode + " pruning is " + averageTrainError + "\n"
-//                                    + "The average test error of the decision tree with " + mode + " pruning is " + averageTestError + "\n"
-//                    );
-//                }
-//
-//                writer.write("The amount of rules generated from the tree " + amountOfRulesGeneratedFromTheTree + "\n");
-//            }
-//        } catch (IOException ex) {
-//            System.out.println(MessageFormat.format("An error occurred, ex:{0}", ex));
-//        } finally {
-//            try {
-//                writer.close();
-//            } catch (Exception ex) {
-//                System.out.println(MessageFormat.format("An error occurred while trying to finalize, ex:{0}", ex));
-//            }
-//        }
+        try {
+            writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("h2.txt"), "utf-8"));
+
+            for (PruningMode mode : PruningMode.values()) {
+
+                //Train classifier
+                DecisionTree dt = new DecisionTree();
+                dt.setPruningMode(mode);
+                dt.buildClassifier(trainingCancer);
+
+                double averageTrainError = dt.calcAvgError(trainingCancer);
+                double averageTestError = dt.calcAvgError(testingCancer);
+                double amountOfRulesGeneratedFromTheTree = dt.getAmountOfRules();
+
+                if (mode.equals(PruningMode.None)) {
+                    writer.write(
+                            "Decision Tree with No pruning\n"
+                                    + "The average train error of the decision tree is " + averageTrainError + "\n"
+                                    + "The average test error of the decision tree is " + averageTestError + "\n"
+                    );
+                } else {
+                    writer.write(
+                            "Decision Tree with " + mode.toString() + " pruning\n"
+                                    + "The average train error of the decision tree with " + mode + " pruning is " + averageTrainError + "\n"
+                                    + "The average test error of the decision tree with " + mode + " pruning is " + averageTestError + "\n"
+                    );
+                }
+
+                writer.write("The amount of rules generated from the tree " + amountOfRulesGeneratedFromTheTree + "\n");
+            }
+        } catch (IOException ex) {
+            System.out.println(MessageFormat.format("An error occurred, ex:{0}", ex));
+        } finally {
+            try {
+                writer.close();
+            } catch (Exception ex) {
+                System.out.println(MessageFormat.format("An error occurred while trying to finalize, ex:{0}", ex));
+            }
+        }
     }
 }
