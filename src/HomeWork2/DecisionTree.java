@@ -1,5 +1,6 @@
 package HomeWork2;
 
+import com.sun.tools.javac.util.*;
 import weka.classifiers.Classifier;
 import weka.core.Attribute;
 import weka.core.Capabilities;
@@ -7,6 +8,7 @@ import weka.core.Instance;
 import weka.core.Instances;
 
 import java.util.*;
+import java.util.List;
 
 class BasicRule {
     int attributeIndex;
@@ -19,6 +21,10 @@ class BasicRule {
 }
 
 class Rule {
+    public List<BasicRule> getListOfBasicRules() {
+        return listOfBasicRules;
+    }
+
     List<BasicRule> listOfBasicRules; // TODO: check if allowed to change name from basicRule to listOfBasicRules
     double returnValue;
 
@@ -41,8 +47,7 @@ class Node {
     BasicRule basicRule;
     Instances instances;
 
-    public Node(Instances data, Rule fathersRule) {
-        this.nodeRule = fathersRule;
+    public Node(Instances data) {
         this.instances = new Instances(data, -1);
     }
 
@@ -174,14 +179,12 @@ public class DecisionTree implements Classifier {
     // Given members
     // DO NOT delete or change name - these are given members - we are not allowed to change them
     private Node rootNode;
-
     public enum PruningMode {
         None, Chi, Rule
     }
-
     private PruningMode m_pruningMode;
     Instances validationSet;
-    private List<Rule> leavesRules = new ArrayList<Rule>(); // TODO: check if allowed to change name from rules to leavesRules and what's the meaning of it, sent ben a message
+    private List<Rule> leavesRules = new ArrayList<Rule>();
 
     @Override
     public void buildClassifier(Instances arg0) throws Exception {
@@ -190,7 +193,7 @@ public class DecisionTree implements Classifier {
         m_numOfAttributes = arg0.numAttributes() - 1;
 
         // Adding root
-        rootNode = new Node(arg0, new Rule());
+        rootNode = new Node(arg0);
         m_nodesQueue = new LinkedList<>();
         m_nodesQueue.add(rootNode);
 
@@ -233,6 +236,7 @@ public class DecisionTree implements Classifier {
                 // Otherwise, if currentNode is not a leaf, it has to be forked - find best attribute for splitting the data
                 Attribute bestAttribute = currentNode.findBestAttribute();
                 int indexOfBestAttribute = bestAttribute.index(); // TODO: use it after ben answers to set value for                            attributeIndex member
+                currentNode.attributeIndex = indexOfBestAttribute;
 
                 // TODO: decide where to locate the chi square test and the logic
                 // If your chi squared statistic is less than the threshold you prune.
@@ -241,32 +245,30 @@ public class DecisionTree implements Classifier {
 
                 //create each child with its fathers list of rules(nodeRules) so far
                 currentNode.children = new Node[bestAttribute.numValues()];
-                for (int i = 0; i < currentNode.children.length; i++) {
-                    currentNode.children[i] = new Node(data, currentNode.nodeRule);
-                }
 
-                // k indicates the index of the value of the attribute
-                int k = 0;
-                Enumeration<Object> attributeValues = bestAttribute.enumerateValues();
-                while (attributeValues.hasMoreElements()) {
+                for (int i = 0; i < bestAttribute.numValues(); i++) {
 
-                    Object attributeValue = attributeValues.nextElement();
-                    Node currentChild = currentNode.children[k];
+                    Node child = new Node(data);
 
                     // Update the child members values
-                    currentChild.basicRule = new BasicRule(k, bestAttribute.index());
-                    currentChild.nodeRule.listOfBasicRules.add(currentChild.basicRule);
-                    currentChild.parent = currentNode;
+                    child.basicRule = new BasicRule(indexOfBestAttribute, i);
+
+                    List<BasicRule> parentBasicRules = currentNode.nodeRule.getListOfBasicRules();
+                    List<BasicRule> childBasicRules = new ArrayList<>(parentBasicRules.size());
+                    childBasicRules.add(child.basicRule);
+                    child.nodeRule.listOfBasicRules = childBasicRules;
+                    child.parent = currentNode;
 
                     // Update the instances member for that child
+                    Object attributeValue = bestAttribute.value(i);
                     for (Instance instance : currentNode.instances) {
                         String bestAttributeValueOfCurrentInstance = instance.stringValue(bestAttribute);
                         if (bestAttributeValueOfCurrentInstance.equals(attributeValue)) {
-                            currentChild.instances.add(instance);
+                            child.instances.add(instance);
                         }
                     }
 
-                    k++;
+                    currentNode.children[i] = child;
                 }
 
                 // Add the children to the queue
@@ -406,7 +408,7 @@ public class DecisionTree implements Classifier {
             if (instance.value(basicRule.attributeIndex) == basicRule.attributeValue) {
                 numberOfConsecutiveConditions++;
             } else {
-                // TODO: make sure the logic is right: make sure that ConsecutiveConditions refer to ConsecutiveConditions starting form the first consition
+                // TODO: make sure the logic is right: make sure that ConsecutiveConditions refer to ConsecutiveConditions starting form the first condition
                 return numberOfConsecutiveConditions;
             }
         }
