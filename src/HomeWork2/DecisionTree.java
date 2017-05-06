@@ -28,14 +28,11 @@ class Rule {
 }
 
 class Node {
-    // DO NOT delete or change name - these are given members - we are not allowed to change them
     Node[] children;
     Node parent;
     int attributeIndex;
     double returnValue;
     Rule nodeRule = new Rule();
-
-    // Our members
     BasicRule basicRule;
     Instances instances;
 
@@ -156,14 +153,9 @@ class Node {
 
 public class DecisionTree implements Classifier {
 
-    // Our members
     private List<Node> leavesNodes = new LinkedList<Node>();
     private Queue<Node> m_nodesQueue;
-    private int m_numOfAttributes; //todo: where do we use it?
     private static final double THRESHOLD = 15.51;
-
-    // Given members
-    // DO NOT delete or change name - these are given members - we are not allowed to change them
     private Node rootNode;
 
     public enum PruningMode {
@@ -176,10 +168,6 @@ public class DecisionTree implements Classifier {
 
     @Override
     public void buildClassifier(Instances arg0) throws Exception {
-
-        // We subtract 1 since classValue is included
-        m_numOfAttributes = arg0.numAttributes() - 1;
-
         // Adding root
         rootNode = new Node(arg0);
         m_nodesQueue = new LinkedList<>();
@@ -211,9 +199,14 @@ public class DecisionTree implements Classifier {
 
                 // If the instances of currentNode have the same class value - the current node is a leaf
                 // Or if the instances of currentNode have the same attributes values - the current node is a leaf
-                if (currentNode.sameClassValueForAllInstances() || currentNode.sameAttributesValuesForAllInstances()) {
+                if (currentNode.sameClassValueForAllInstances()) {
                     currentNode.nodeRule.returnValue = classValue;
                     currentNode.returnValue = classValue;
+                    leavesNodes.add(currentNode);
+                    continue;
+                } else if (currentNode.sameAttributesValuesForAllInstances()) {
+                    currentNode.nodeRule.returnValue = 1;
+                    currentNode.returnValue = 1;
                     leavesNodes.add(currentNode);
                     continue;
                 }
@@ -222,7 +215,6 @@ public class DecisionTree implements Classifier {
                 Attribute bestAttribute = currentNode.findBestAttribute();
                 int indexOfBestAttribute = bestAttribute.index(); // TODO: use it after ben answers to set value for                            attributeIndex member
                 currentNode.attributeIndex = indexOfBestAttribute;
-
 
                 // If we are in chi mode & chi squared statistic is less than the threshold - prune. otherwise- split
                 if (!(m_pruningMode == PruningMode.Chi &&
@@ -307,18 +299,18 @@ public class DecisionTree implements Classifier {
                 averageErrorAfterPruning = calcAvgError(validationSet);
 
                 differenceBetweenErrors = averageErrorBeforePruning - averageErrorAfterPruning;
-                //if we get smaller error after pruning- we should consider pruning
+                // If we get smaller error after pruning - we should consider pruning
                 if (differenceBetweenErrors > maxDifferenceBetweenErrors) {
                     maxDifferenceBetweenErrors = differenceBetweenErrors;
                     indexToPrune = i;
                 }
 
-                //return the tree to its previous structure - before pruning
+                // Return the tree to its previous structure - before pruning
                 leavesRules.add(deletedRule);
             }
 
-            //we should prune if we found a branch for which the error after the pruning is smaller than the error
-            //before the pruning
+            // We should prune if we found a branch for which the error after the pruning is smaller than the error
+            // before the pruning
             if (maxDifferenceBetweenErrors > 0) {//pruning is needed
                 leavesRules.remove(indexToPrune);
             } else {
