@@ -1,6 +1,5 @@
 package HomeWork2;
 
-import com.sun.tools.javac.util.*;
 import weka.classifiers.Classifier;
 import weka.core.Attribute;
 import weka.core.Capabilities;
@@ -8,7 +7,6 @@ import weka.core.Instance;
 import weka.core.Instances;
 
 import java.util.*;
-import java.util.List;
 
 class BasicRule {
     int attributeIndex;
@@ -21,21 +19,15 @@ class BasicRule {
 }
 
 class Rule {
-    public List<BasicRule> getListOfBasicRules() {
-        return listOfBasicRules;
-    }
-
     List<BasicRule> listOfBasicRules; // TODO: check if allowed to change name from basicRule to listOfBasicRules
     double returnValue;
 
     public Rule() {
-        listOfBasicRules = new LinkedList<BasicRule>();
-        // TODO: what is the default returnValue if constructing a new rule
+        listOfBasicRules = new LinkedList<>();
     }
 }
 
 class Node {
-
     // DO NOT delete or change name - these are given members - we are not allowed to change them
     Node[] children;
     Node parent;
@@ -140,14 +132,13 @@ class Node {
                 }
             }
 
-            if (totalNumberOfInstancesWithCurrentAttributeValue != 0 && numberOfInstancesWithCurrentAttributeValueAndClassIndexZero != 0) {
-
+            if (totalNumberOfInstancesWithCurrentAttributeValue != 0) {
                 double entropyResult = calcEntropy((double) numberOfInstancesWithCurrentAttributeValueAndClassIndexZero /
                         totalNumberOfInstancesWithCurrentAttributeValue);
 
                 double product = ((double) totalNumberOfInstancesWithCurrentAttributeValue / numOfInstances) * entropyResult;
                 weightedAverageOfEntropyAccordingToAttributeIndex += product;
-            }
+           }
         }
 
         return rootEntropy - weightedAverageOfEntropyAccordingToAttributeIndex;
@@ -155,16 +146,11 @@ class Node {
 
     private double calcEntropy(double probability1) {
         double probability2 = 1 - probability1;
-
-        if (probability1 == 0) {
-            probability1 = 1;
-        }
-        if (probability2 == 0) {
-            probability2 = 1;
+        if (probability1==0 || probability2==0){
+            return 0;
         }
 
-        double entropy = - ((probability1 * Math.log(probability1)) + (probability2 * Math.log(probability2)));
-        return entropy;
+        return -((probability1 * Math.log(probability1)) + (probability2 * Math.log(probability2)));
     }
 }
 
@@ -173,15 +159,17 @@ public class DecisionTree implements Classifier {
     // Our members
     private List<Node> leavesNodes = new LinkedList<Node>();
     private Queue<Node> m_nodesQueue;
-    private int m_numOfAttributes;
+    private int m_numOfAttributes; //todo: where do we use it?
     private static final double THRESHOLD = 15.51;
 
     // Given members
     // DO NOT delete or change name - these are given members - we are not allowed to change them
     private Node rootNode;
+
     public enum PruningMode {
         None, Chi, Rule
     }
+
     private PruningMode m_pruningMode;
     Instances validationSet;
     private List<Rule> leavesRules = new ArrayList<Rule>();
@@ -197,14 +185,11 @@ public class DecisionTree implements Classifier {
         m_nodesQueue = new LinkedList<>();
         m_nodesQueue.add(rootNode);
 
-        // Set pruning mode to "chi"
-        m_pruningMode = PruningMode.Chi;
-
         // Build the tree
         buildTree(arg0);
 
-        // For debugging
-        rootNode = rootNode;
+        //after building the tree, convert it to set of rules and do not use the tree anymore
+        setTreesRules();
     }
 
     /**
@@ -220,7 +205,7 @@ public class DecisionTree implements Classifier {
 
             Node currentNode = m_nodesQueue.remove();
 
-            // If there are instances in the current node there's no need to handle it
+            // If there are no instances in the current node there's no need to handle it
             if (currentNode.instances.size() != 0) {
                 double classValue = currentNode.instances.instance(0).classValue();
 
@@ -238,42 +223,41 @@ public class DecisionTree implements Classifier {
                 int indexOfBestAttribute = bestAttribute.index(); // TODO: use it after ben answers to set value for                            attributeIndex member
                 currentNode.attributeIndex = indexOfBestAttribute;
 
-                // TODO: decide where to locate the chi square test and the logic
-                // If your chi squared statistic is less than the threshold you prune.
-                //double chiSquareStatistic = calcChiSquare(currentNode.instances, bestAttribute.index());
-                //if (chiSquareStatistic >= THRESHOLD) {
 
-                //create each child with its fathers list of rules(nodeRules) so far
-                currentNode.children = new Node[bestAttribute.numValues()];
+                // If we are in chi mode & chi squared statistic is less than the threshold - prune. otherwise- split
+                if (!(m_pruningMode == PruningMode.Chi &&
+                        calcChiSquare(currentNode.instances, bestAttribute.index()) < THRESHOLD)) {
 
-                for (int i = 0; i < bestAttribute.numValues(); i++) {
+                    //create each child with its fathers list of rules(nodeRules) so far
+                    currentNode.children = new Node[bestAttribute.numValues()];
 
-                    Node child = new Node(data);
+                    for (int i = 0; i < bestAttribute.numValues(); i++) {
 
-                    // Update the child members values
-                    child.basicRule = new BasicRule(indexOfBestAttribute, i);
+                        Node child = new Node(data);
 
-                    List<BasicRule> parentBasicRules = currentNode.nodeRule.getListOfBasicRules();
-                    List<BasicRule> childBasicRules = new ArrayList<>(parentBasicRules.size());
-                    childBasicRules.add(child.basicRule);
-                    child.nodeRule.listOfBasicRules = childBasicRules;
-                    child.parent = currentNode;
+                        // Update the child members values:
+                        child.parent = currentNode;
+                        child.basicRule = new BasicRule(indexOfBestAttribute, i);
+                        //set each child's rules to its fathers rules + the child's basicRule
+                        child.nodeRule.listOfBasicRules = new ArrayList<>(child.parent.nodeRule.listOfBasicRules);
+                        child.nodeRule.listOfBasicRules.add(child.basicRule);
 
-                    // Update the instances member for that child
-                    Object attributeValue = bestAttribute.value(i);
-                    for (Instance instance : currentNode.instances) {
-                        String bestAttributeValueOfCurrentInstance = instance.stringValue(bestAttribute);
-                        if (bestAttributeValueOfCurrentInstance.equals(attributeValue)) {
-                            child.instances.add(instance);
+                        // Update the instances member for that child
+                        Object attributeValue = bestAttribute.value(i);
+                        for (Instance instance : currentNode.instances) {
+                            String bestAttributeValueOfCurrentInstance = instance.stringValue(bestAttribute);
+                            if (bestAttributeValueOfCurrentInstance.equals(attributeValue)) {
+                                child.instances.add(instance);
+                            }
                         }
+
+                        currentNode.children[i] = child;
                     }
 
-                    currentNode.children[i] = child;
-                }
-
-                // Add the children to the queue
-                for (Node child : currentNode.children) {
-                    m_nodesQueue.add(child);
+                    // Add the children to the queue
+                    for (Node child : currentNode.children) {
+                        m_nodesQueue.add(child);
+                    }
                 }
             }
         }
@@ -288,7 +272,6 @@ public class DecisionTree implements Classifier {
      * @return the average error
      */
     public double calcAvgError(Instances data) {
-
         int numOfInstances = data.numInstances();
         int numOfErrors = 0;
 
@@ -305,24 +288,42 @@ public class DecisionTree implements Classifier {
         return averageError;
     }
 
-    private void rulePruning() {
-        setTreesRules();
+    public void postPruning() {
+        double differenceBetweenErrors, maxDifferenceBetweenErrors, averageErrorBeforePruning, averageErrorAfterPruning;
+        boolean continuePruning = true;
+        int indexToPrune = -1;
+        Rule deletedRule;
 
-        for (int i = 0; i < leavesNodes.size(); i++) {
+        while (continuePruning) {
+            maxDifferenceBetweenErrors = 0;
+            for (int i = 0; i < leavesRules.size(); i++) {
+                // Calculate average error BEFORE pruning
+                averageErrorBeforePruning = calcAvgError(validationSet);
 
-            Node currentNode = leavesNodes.get(i);
+                // Remove the current rule
+                deletedRule = leavesRules.remove(i);
 
-            // Calculate average error before pruning
-            double averageErrorBeforePruning = calcAvgError(currentNode.instances);
+                // Calculate average error AFTER pruning
+                averageErrorAfterPruning = calcAvgError(validationSet);
 
-            // Remove the last basic rule in the list
-            List<BasicRule> basicRulesOfCurrentRule = currentNode.nodeRule.listOfBasicRules;
-            BasicRule RemovedBasicRule = basicRulesOfCurrentRule.remove(basicRulesOfCurrentRule.size() - 1);
+                differenceBetweenErrors = averageErrorBeforePruning - averageErrorAfterPruning;
+                //if we get smaller error after pruning- we should consider pruning
+                if (differenceBetweenErrors > maxDifferenceBetweenErrors) {
+                    maxDifferenceBetweenErrors = differenceBetweenErrors;
+                    indexToPrune = i;
+                }
 
-            // Calculate average error after pruning
-            calcAvgError(currentNode.parent.instances);
+                //return the tree to its previous structure - before pruning
+                leavesRules.add(deletedRule);
+            }
 
-            // TODO: to be continued
+            //we should prune if we found a branch for which the error after the pruning is smaller than the error
+            //before the pruning
+            if (maxDifferenceBetweenErrors > 0) {//pruning is needed
+                leavesRules.remove(indexToPrune);
+            } else {
+                continuePruning = false;
+            }
         }
     }
 
@@ -396,22 +397,21 @@ public class DecisionTree implements Classifier {
     /**
      * Calculates for a given instance the number of consecutive conditions that hold in a certain node
      *
-     * @param currentNode
+     * @param listOfBasicRules
      * @param instance
      * @return number of consecutive conditions
      */
-    private int calculateNumberOfConsecutiveConditions(Node currentNode, Instance instance) {
+    private int calculateNumberOfConsecutiveConditions(List<BasicRule> listOfBasicRules, Instance instance) {
         int numberOfConsecutiveConditions = 0;
-        List<BasicRule> listOfBasicRules = currentNode.nodeRule.listOfBasicRules;
 
         for (BasicRule basicRule : listOfBasicRules) {
             if (instance.value(basicRule.attributeIndex) == basicRule.attributeValue) {
                 numberOfConsecutiveConditions++;
             } else {
-                // TODO: make sure the logic is right: make sure that ConsecutiveConditions refer to ConsecutiveConditions starting form the first condition
                 return numberOfConsecutiveConditions;
             }
         }
+
         return numberOfConsecutiveConditions;
     }
 
@@ -438,7 +438,8 @@ public class DecisionTree implements Classifier {
      *
      * @param validation
      */
-    public void setValidation(Instances validation) {
+    // TODO: Ilan check why we haven't used this method
+    public void setValidationSet(Instances validation) {
         validationSet = validation;
     }
 
@@ -448,7 +449,6 @@ public class DecisionTree implements Classifier {
      * @return amount of rules
      */
     public int getAmountOfRules() {
-        setTreesRules(); // TODO: remove after pruning is implemented
         return leavesRules.size();
     }
 
@@ -465,28 +465,45 @@ public class DecisionTree implements Classifier {
      * @return the predicted class value
      */
     @Override
+    //todo: classifyInstance shouldn't use anything connected to the tree. only use the created rules
     public double classifyInstance(Instance instance) {
 
-        Node nodeWithMostSuitableRule = null;
-        int maxNumberOfConsecutiveConditions = Integer.MIN_VALUE;
+        Rule mostSuitableRule = null;
+        int currentNumberOfConsecutiveConditions, maxNumberOfConsecutiveConditions = Integer.MIN_VALUE;
+        ArrayList<Integer> numberOfConsecutiveConditionsPerRule = new ArrayList<>();
 
-        for (Node leaf : leavesNodes) {
-            // Iterating all leaves in order to find the node with the most suitable rule.
-            int currentNumberOfConsecutiveConditions = calculateNumberOfConsecutiveConditions(leaf, instance);
+        // first iterate all rules in order to find the node with the most suitable rule.
+        for (int i = 0; i < leavesRules.size(); i++) {
+            currentNumberOfConsecutiveConditions = calculateNumberOfConsecutiveConditions(leavesRules.get(i).listOfBasicRules, instance);
+            numberOfConsecutiveConditionsPerRule.add(currentNumberOfConsecutiveConditions);
+
             if (currentNumberOfConsecutiveConditions > maxNumberOfConsecutiveConditions) {
-                // if the number of consecutive condition of the current node is higher than maximum,
-                // then update maximum and set nodeWithMostSuitableRule with the current node
                 maxNumberOfConsecutiveConditions = currentNumberOfConsecutiveConditions;
-                nodeWithMostSuitableRule = leaf;
-            } else if (currentNumberOfConsecutiveConditions == maxNumberOfConsecutiveConditions) {
-                // if the number of consecutive condition of the current node is equal to the maximum,
-                // then compare the return values of these 2 nodes and update maximum to the node with the higher return value.
-                if (leaf.nodeRule.returnValue > nodeWithMostSuitableRule.nodeRule.returnValue)
-                    nodeWithMostSuitableRule = leaf;
+                mostSuitableRule = leavesRules.get(i);
             }
         }
 
-        return nodeWithMostSuitableRule.nodeRule.returnValue;
+        // If there is only one rule that meets the largest number of consecutive conditions (includes the case in which
+        //  an instance meets all conditions for a given rule) - return the rule returning value
+        if (Collections.frequency(numberOfConsecutiveConditionsPerRule, maxNumberOfConsecutiveConditions) == 1) {
+            return mostSuitableRule.returnValue;
+        }
+
+        //If there are more than one rule with the largest number from the previous step then classify with the majority
+        //of the returning values of those rules
+        int countClassValueZeroWithMaxConditions = 0, countClassValueOneWithMaxConditions, countMaxConditionsRules = 0;
+        for (int i = 0; i < leavesRules.size(); i++) {
+            if (numberOfConsecutiveConditionsPerRule.get(i) == maxNumberOfConsecutiveConditions) {
+                countMaxConditionsRules++;
+                if (leavesRules.get(i).returnValue == 0) {
+                    countClassValueZeroWithMaxConditions++;
+                }
+            }
+        }
+
+        countClassValueOneWithMaxConditions = countMaxConditionsRules - countClassValueZeroWithMaxConditions;
+
+        return (countClassValueZeroWithMaxConditions > countClassValueOneWithMaxConditions ? 0 : 1);
     }
 
     @Override
